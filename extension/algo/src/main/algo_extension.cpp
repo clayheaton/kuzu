@@ -35,6 +35,21 @@ void AlgoExtension::load(main::ClientContext* context) {
     ExtensionUtils::addTableFuncAlias<ClosenessCentralityAliasFunction>(db);
     ExtensionUtils::addTableFunc<BetweennessCentralityFunction>(db);
     ExtensionUtils::addTableFuncAlias<BetweennessCentralityAliasFunction>(db);
+    // Layout algorithms
+    ExtensionUtils::addTableFunc<RandomLayoutFunction>(db);
+    ExtensionUtils::addTableFuncAlias<RandomLayoutAliasFunction>(db);
+    ExtensionUtils::addTableFunc<CircularLayoutFunction>(db);
+    ExtensionUtils::addTableFuncAlias<CircularLayoutAliasFunction>(db);
+    ExtensionUtils::addTableFunc<FruchtermanReingoldFunction>(db);
+    ExtensionUtils::addTableFuncAlias<FruchtermanReingoldAliasFunction>(db);
+    ExtensionUtils::addTableFunc<RadialLayoutFunction>(db);
+    ExtensionUtils::addTableFuncAlias<RadialLayoutAliasFunction>(db);
+    ExtensionUtils::addTableFunc<HierarchicalLayoutFunction>(db);
+    ExtensionUtils::addTableFuncAlias<HierarchicalLayoutAliasFunction>(db);
+    ExtensionUtils::addTableFunc<YifanHuLayoutFunction>(db);
+    ExtensionUtils::addTableFuncAlias<YifanHuLayoutAliasFunction>(db);
+    ExtensionUtils::addTableFunc<ForceAtlas2Function>(db);
+    ExtensionUtils::addTableFuncAlias<ForceAtlas2AliasFunction>(db);
 }
 
 } // namespace algo_extension

@@ -16,6 +16,14 @@ add_library(kuzu_algo_function
         hits.cpp
         closeness_centrality.cpp
         betweenness_centrality.cpp
+        # Layout algorithms
+        random_layout.cpp
+        circular_layout.cpp
+        fruchterman_reingold_layout.cpp
+        radial_layout.cpp
+        hierarchical_layout.cpp
+        yifan_hu_layout.cpp
+        forceatlas2_layout.cpp
         )
 
 set(ALGO_EXTENSION_OBJECT_FILES

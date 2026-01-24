@@ -155,5 +155,91 @@ struct BetweennessCentralityAliasFunction {
     static constexpr const char* name = "BETWEENNESS";
 };
 
+// Layout Algorithms
+
+struct RandomLayoutFunction {
+    static constexpr const char* name = "RANDOM_LAYOUT";
+
+    static function::function_set getFunctionSet();
+};
+
+struct RandomLayoutAliasFunction {
+    using alias = RandomLayoutFunction;
+
+    static constexpr const char* name = "RAND_LAYOUT";
+};
+
+struct CircularLayoutFunction {
+    static constexpr const char* name = "CIRCULAR_LAYOUT";
+
+    static function::function_set getFunctionSet();
+};
+
+struct CircularLayoutAliasFunction {
+    using alias = CircularLayoutFunction;
+
+    static constexpr const char* name = "CIRCLE";
+};
+
+struct FruchtermanReingoldFunction {
+    static constexpr const char* name = "FRUCHTERMAN_REINGOLD";
+
+    static function::function_set getFunctionSet();
+};
+
+struct FruchtermanReingoldAliasFunction {
+    using alias = FruchtermanReingoldFunction;
+
+    static constexpr const char* name = "FR_LAYOUT";
+};
+
+struct RadialLayoutFunction {
+    static constexpr const char* name = "RADIAL_LAYOUT";
+
+    static function::function_set getFunctionSet();
+};
+
+struct RadialLayoutAliasFunction {
+    using alias = RadialLayoutFunction;
+
+    static constexpr const char* name = "RADIAL";
+};
+
+struct HierarchicalLayoutFunction {
+    static constexpr const char* name = "HIERARCHICAL_LAYOUT";
+
+    static function::function_set getFunctionSet();
+};
+
+struct HierarchicalLayoutAliasFunction {
+    using alias = HierarchicalLayoutFunction;
+
+    static constexpr const char* name = "HIERARCHY";
+};
+
+struct YifanHuLayoutFunction {
+    static constexpr const char* name = "YIFAN_HU_LAYOUT";
+
+    static function::function_set getFunctionSet();
+};
+
+struct YifanHuLayoutAliasFunction {
+    using alias = YifanHuLayoutFunction;
+
+    static constexpr const char* name = "YIFAN_HU";
+};
+
+struct ForceAtlas2Function {
+    static constexpr const char* name = "FORCEATLAS2";
+
+    static function::function_set getFunctionSet();
+};
+
+struct ForceAtlas2AliasFunction {
+    using alias = ForceAtlas2Function;
+
+    static constexpr const char* name = "FA2";
+};
+
 } // namespace algo_extension
 } // namespace kuzu
