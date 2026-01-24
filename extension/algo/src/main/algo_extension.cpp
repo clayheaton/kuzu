@@ -23,6 +23,18 @@ void AlgoExtension::load(main::ClientContext* context) {
     ExtensionUtils::addTableFunc<LouvainFunction>(db);
     ExtensionUtils::addTableFunc<SpanningForest>(db);
     ExtensionUtils::addTableFuncAlias<SpanningForestAliasFunction>(db);
+    ExtensionUtils::addTableFunc<GraphDensityFunction>(db);
+    ExtensionUtils::addTableFuncAlias<GraphDensityAliasFunction>(db);
+    ExtensionUtils::addTableFunc<ClusteringCoefficientFunction>(db);
+    ExtensionUtils::addTableFuncAlias<ClusteringCoefficientAliasFunction>(db);
+    ExtensionUtils::addTableFunc<EigenvectorCentralityFunction>(db);
+    ExtensionUtils::addTableFuncAlias<EigenvectorCentralityAliasFunction>(db);
+    ExtensionUtils::addTableFunc<HitsFunction>(db);
+    ExtensionUtils::addTableFuncAlias<HitsAliasFunction>(db);
+    ExtensionUtils::addTableFunc<ClosenessCentralityFunction>(db);
+    ExtensionUtils::addTableFuncAlias<ClosenessCentralityAliasFunction>(db);
+    ExtensionUtils::addTableFunc<BetweennessCentralityFunction>(db);
+    ExtensionUtils::addTableFuncAlias<BetweennessCentralityAliasFunction>(db);
 }
 
 } // namespace algo_extension

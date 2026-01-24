@@ -10,6 +10,12 @@ add_library(kuzu_algo_function
         k_core_decomposition.cpp
         louvain.cpp
         spanning_forest.cpp
+        graph_density.cpp
+        clustering_coefficient.cpp
+        eigenvector_centrality.cpp
+        hits.cpp
+        closeness_centrality.cpp
+        betweenness_centrality.cpp
         )
 
 set(ALGO_EXTENSION_OBJECT_FILES

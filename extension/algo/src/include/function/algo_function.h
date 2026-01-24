@@ -83,5 +83,77 @@ struct SpanningForestAliasFunction {
     static constexpr const char* name = "SF";
 };
 
+struct GraphDensityFunction {
+    static constexpr const char* name = "GRAPH_DENSITY";
+
+    static function::function_set getFunctionSet();
+};
+
+struct GraphDensityAliasFunction {
+    using alias = GraphDensityFunction;
+
+    static constexpr const char* name = "DENSITY";
+};
+
+struct ClusteringCoefficientFunction {
+    static constexpr const char* name = "CLUSTERING_COEFFICIENT";
+
+    static function::function_set getFunctionSet();
+};
+
+struct ClusteringCoefficientAliasFunction {
+    using alias = ClusteringCoefficientFunction;
+
+    static constexpr const char* name = "LOCAL_CC";
+};
+
+struct EigenvectorCentralityFunction {
+    static constexpr const char* name = "EIGENVECTOR_CENTRALITY";
+
+    static function::function_set getFunctionSet();
+};
+
+struct EigenvectorCentralityAliasFunction {
+    using alias = EigenvectorCentralityFunction;
+
+    static constexpr const char* name = "EIGENVECTOR";
+};
+
+struct HitsFunction {
+    static constexpr const char* name = "HITS";
+
+    static function::function_set getFunctionSet();
+};
+
+struct HitsAliasFunction {
+    using alias = HitsFunction;
+
+    static constexpr const char* name = "HUBS_AND_AUTHORITIES";
+};
+
+struct ClosenessCentralityFunction {
+    static constexpr const char* name = "CLOSENESS_CENTRALITY";
+
+    static function::function_set getFunctionSet();
+};
+
+struct ClosenessCentralityAliasFunction {
+    using alias = ClosenessCentralityFunction;
+
+    static constexpr const char* name = "CLOSENESS";
+};
+
+struct BetweennessCentralityFunction {
+    static constexpr const char* name = "BETWEENNESS_CENTRALITY";
+
+    static function::function_set getFunctionSet();
+};
+
+struct BetweennessCentralityAliasFunction {
+    using alias = BetweennessCentralityFunction;
+
+    static constexpr const char* name = "BETWEENNESS";
+};
+
 } // namespace algo_extension
 } // namespace kuzu
