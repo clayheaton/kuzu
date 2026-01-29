@@ -1,11 +1,14 @@
 #include "binder/binder.h"
+#include "common/string_utils.h"
 #include "function/algo_function.h"
+#include "function/config/radial_config.h"
 #include "function/degrees.h"
 #include "function/gds/gds.h"
 #include "function/gds/gds_utils.h"
 #include "function/gds/gds_vertex_compute.h"
 #include "function/table/bind_data.h"
 #include "function/table/bind_input.h"
+#include "function/table/optional_params.h"
 #include "graph/on_disk_graph.h"
 #include "processor/execution_context.h"
 #include "transaction/transaction.h"
@@ -28,20 +31,52 @@ namespace algo_extension {
 static constexpr char X_COLUMN_NAME[] = "x";
 static constexpr char Y_COLUMN_NAME[] = "y";
 
-// Default parameter values
-static constexpr double DEFAULT_MIN_RADIUS = 50.0;
-static constexpr double DEFAULT_RADIUS_INCREMENT = 100.0;
-
 // M_PI may not be defined on all platforms
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
+// Optional parameters for Radial layout
+struct RadialOptionalParams final : public function::OptionalParams {
+    function::OptionalParam<RadialMinRadius> minRadius;
+    function::OptionalParam<RadialRadiusIncrement> radiusIncrement;
+
+    explicit RadialOptionalParams(const binder::expression_vector& optionalParams) {
+        for (auto& optionalParam : optionalParams) {
+            auto paramName = StringUtils::getLower(optionalParam->getAlias());
+            if (paramName == RadialMinRadius::NAME) {
+                minRadius = function::OptionalParam<RadialMinRadius>(optionalParam);
+            } else if (paramName == RadialRadiusIncrement::NAME) {
+                radiusIncrement = function::OptionalParam<RadialRadiusIncrement>(optionalParam);
+            } else {
+                throw BinderException{"Unknown optional parameter: " + optionalParam->getAlias()};
+            }
+        }
+    }
+
+    // For copy only
+    RadialOptionalParams(function::OptionalParam<RadialMinRadius> minRadius,
+        function::OptionalParam<RadialRadiusIncrement> radiusIncrement)
+        : minRadius{std::move(minRadius)}, radiusIncrement{std::move(radiusIncrement)} {}
+
+    void evaluateParams(main::ClientContext* context) override {
+        minRadius.evaluateParam(context);
+        radiusIncrement.evaluateParam(context);
+    }
+
+    std::unique_ptr<function::OptionalParams> copy() override {
+        return std::make_unique<RadialOptionalParams>(minRadius, radiusIncrement);
+    }
+};
+
 // Bind data for radial layout
 struct RadialLayoutBindData final : public GDSBindData {
     RadialLayoutBindData(expression_vector columns, NativeGraphEntry graphEntry,
-        std::shared_ptr<Expression> nodeOutput)
-        : GDSBindData{std::move(columns), std::move(graphEntry), expression_vector{nodeOutput}} {}
+        std::shared_ptr<Expression> nodeOutput,
+        std::unique_ptr<RadialOptionalParams> optionalParams)
+        : GDSBindData{std::move(columns), std::move(graphEntry), expression_vector{nodeOutput}} {
+        this->optionalParams = std::move(optionalParams);
+    }
 
     std::unique_ptr<TableFuncBindData> copy() const override {
         return std::make_unique<RadialLayoutBindData>(*this);
@@ -212,9 +247,11 @@ static offset_t tableFunc(const TableFuncInput& input, TableFuncOutput&) {
     auto maxOffsetMap = graph->getMaxOffsetMap(transaction);
     auto mm = MemoryManager::Get(*clientContext);
 
-    // Parameters
-    double minRadius = DEFAULT_MIN_RADIUS;
-    double radiusIncrement = DEFAULT_RADIUS_INCREMENT;
+    // Get parameters from bind data
+    auto radialBindData = input.bindData->constPtrCast<RadialLayoutBindData>();
+    auto& config = radialBindData->optionalParams->constCast<RadialOptionalParams>();
+    double minRadius = config.minRadius.getParamVal();
+    double radiusIncrement = config.radiusIncrement.getParamVal();
 
     // Initialize position values
     auto xValues = RadialLayoutXValues(maxOffsetMap, mm);
@@ -368,7 +405,7 @@ static std::unique_ptr<TableFuncBindData> bindFunc(main::ClientContext* context,
     columns.push_back(input->binder->createVariable(Y_COLUMN_NAME, LogicalType::DOUBLE()));
 
     return std::make_unique<RadialLayoutBindData>(std::move(columns), std::move(graphEntry),
-        nodeOutput);
+        nodeOutput, std::make_unique<RadialOptionalParams>(input->optionalParamsLegacy));
 }
 
 function_set RadialLayoutFunction::getFunctionSet() {

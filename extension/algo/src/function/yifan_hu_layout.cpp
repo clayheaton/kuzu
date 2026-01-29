@@ -1,10 +1,13 @@
 #include "binder/binder.h"
+#include "common/string_utils.h"
 #include "function/algo_function.h"
+#include "function/config/yifan_hu_config.h"
 #include "function/gds/gds.h"
 #include "function/gds/gds_utils.h"
 #include "function/gds/gds_vertex_compute.h"
 #include "function/table/bind_data.h"
 #include "function/table/bind_input.h"
+#include "function/table/optional_params.h"
 #include "graph/on_disk_graph.h"
 #include "processor/execution_context.h"
 #include "transaction/transaction.h"
@@ -28,19 +31,70 @@ namespace algo_extension {
 static constexpr char X_COLUMN_NAME[] = "x";
 static constexpr char Y_COLUMN_NAME[] = "y";
 
-// Default parameter values for Yifan Hu
-static constexpr int64_t DEFAULT_ITERATIONS = 100;
-static constexpr double DEFAULT_OPTIMAL_DISTANCE = 100.0;   // Ideal edge length K
-static constexpr double DEFAULT_RELATIVE_STRENGTH = 0.2;    // Repulsion multiplier C
-static constexpr double DEFAULT_INITIAL_STEP_SIZE = 20.0;
-static constexpr double DEFAULT_STEP_RATIO = 0.95;          // Step reduction per iteration
-static constexpr double DEFAULT_CONVERGENCE_THRESHOLD = 1e-4;
+// Optional parameters for Yifan Hu layout
+struct YHOptionalParams final : public function::OptionalParams {
+    function::OptionalParam<YHIterations> iterations;
+    function::OptionalParam<YHOptimalDistance> K;
+    function::OptionalParam<YHRelativeStrength> C;
+    function::OptionalParam<YHStepSize> stepSize;
+    function::OptionalParam<YHStepRatio> stepRatio;
+    function::OptionalParam<YHConvergenceThreshold> convergenceThreshold;
+
+    explicit YHOptionalParams(const binder::expression_vector& optionalParams) {
+        for (auto& optionalParam : optionalParams) {
+            auto paramName = StringUtils::getLower(optionalParam->getAlias());
+            if (paramName == YHIterations::NAME) {
+                iterations = function::OptionalParam<YHIterations>(optionalParam);
+            } else if (paramName == YHOptimalDistance::NAME) {
+                K = function::OptionalParam<YHOptimalDistance>(optionalParam);
+            } else if (paramName == YHRelativeStrength::NAME) {
+                C = function::OptionalParam<YHRelativeStrength>(optionalParam);
+            } else if (paramName == YHStepSize::NAME) {
+                stepSize = function::OptionalParam<YHStepSize>(optionalParam);
+            } else if (paramName == YHStepRatio::NAME) {
+                stepRatio = function::OptionalParam<YHStepRatio>(optionalParam);
+            } else if (paramName == YHConvergenceThreshold::NAME) {
+                convergenceThreshold = function::OptionalParam<YHConvergenceThreshold>(optionalParam);
+            } else {
+                throw BinderException{"Unknown optional parameter: " + optionalParam->getAlias()};
+            }
+        }
+    }
+
+    // For copy only
+    YHOptionalParams(function::OptionalParam<YHIterations> iterations,
+        function::OptionalParam<YHOptimalDistance> K,
+        function::OptionalParam<YHRelativeStrength> C,
+        function::OptionalParam<YHStepSize> stepSize,
+        function::OptionalParam<YHStepRatio> stepRatio,
+        function::OptionalParam<YHConvergenceThreshold> convergenceThreshold)
+        : iterations{std::move(iterations)}, K{std::move(K)}, C{std::move(C)},
+          stepSize{std::move(stepSize)}, stepRatio{std::move(stepRatio)},
+          convergenceThreshold{std::move(convergenceThreshold)} {}
+
+    void evaluateParams(main::ClientContext* context) override {
+        iterations.evaluateParam(context);
+        K.evaluateParam(context);
+        C.evaluateParam(context);
+        stepSize.evaluateParam(context);
+        stepRatio.evaluateParam(context);
+        convergenceThreshold.evaluateParam(context);
+    }
+
+    std::unique_ptr<function::OptionalParams> copy() override {
+        return std::make_unique<YHOptionalParams>(iterations, K, C, stepSize, stepRatio,
+            convergenceThreshold);
+    }
+};
 
 // Bind data for Yifan Hu layout
 struct YifanHuBindData final : public GDSBindData {
     YifanHuBindData(expression_vector columns, NativeGraphEntry graphEntry,
-        std::shared_ptr<Expression> nodeOutput)
-        : GDSBindData{std::move(columns), std::move(graphEntry), expression_vector{nodeOutput}} {}
+        std::shared_ptr<Expression> nodeOutput,
+        std::unique_ptr<YHOptionalParams> optionalParams)
+        : GDSBindData{std::move(columns), std::move(graphEntry), expression_vector{nodeOutput}} {
+        this->optionalParams = std::move(optionalParams);
+    }
 
     std::unique_ptr<TableFuncBindData> copy() const override {
         return std::make_unique<YifanHuBindData>(*this);
@@ -211,13 +265,15 @@ static offset_t tableFunc(const TableFuncInput& input, TableFuncOutput&) {
     auto maxOffsetMap = graph->getMaxOffsetMap(transaction);
     auto mm = MemoryManager::Get(*clientContext);
 
-    // Parameters
-    int64_t iterations = DEFAULT_ITERATIONS;
-    double K = DEFAULT_OPTIMAL_DISTANCE;
-    double C = DEFAULT_RELATIVE_STRENGTH;
-    double stepSize = DEFAULT_INITIAL_STEP_SIZE;
-    double stepRatio = DEFAULT_STEP_RATIO;
-    double convergenceThreshold = DEFAULT_CONVERGENCE_THRESHOLD;
+    // Get parameters from bind data
+    auto yhBindData = input.bindData->constPtrCast<YifanHuBindData>();
+    auto& config = yhBindData->optionalParams->constCast<YHOptionalParams>();
+    int64_t iterations = config.iterations.getParamVal();
+    double K = config.K.getParamVal();
+    double C = config.C.getParamVal();
+    double stepSize = config.stepSize.getParamVal();
+    double stepRatio = config.stepRatio.getParamVal();
+    double convergenceThreshold = config.convergenceThreshold.getParamVal();
 
     // Count total nodes
     uint64_t numNodes = 0;
@@ -417,7 +473,7 @@ static std::unique_ptr<TableFuncBindData> bindFunc(main::ClientContext* context,
     columns.push_back(input->binder->createVariable(Y_COLUMN_NAME, LogicalType::DOUBLE()));
 
     return std::make_unique<YifanHuBindData>(std::move(columns), std::move(graphEntry),
-        nodeOutput);
+        nodeOutput, std::make_unique<YHOptionalParams>(input->optionalParamsLegacy));
 }
 
 function_set YifanHuLayoutFunction::getFunctionSet() {

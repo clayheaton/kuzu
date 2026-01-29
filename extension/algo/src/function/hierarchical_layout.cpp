@@ -1,10 +1,13 @@
 #include "binder/binder.h"
+#include "common/string_utils.h"
 #include "function/algo_function.h"
+#include "function/config/hierarchical_config.h"
 #include "function/gds/gds.h"
 #include "function/gds/gds_utils.h"
 #include "function/gds/gds_vertex_compute.h"
 #include "function/table/bind_data.h"
 #include "function/table/bind_input.h"
+#include "function/table/optional_params.h"
 #include "graph/on_disk_graph.h"
 #include "processor/execution_context.h"
 #include "transaction/transaction.h"
@@ -28,16 +31,53 @@ namespace algo_extension {
 static constexpr char X_COLUMN_NAME[] = "x";
 static constexpr char Y_COLUMN_NAME[] = "y";
 
-// Default parameter values
-static constexpr double DEFAULT_RANK_SEP = 100.0;   // Separation between layers
-static constexpr double DEFAULT_NODE_SEP = 50.0;    // Separation between nodes in same layer
-static constexpr int64_t DEFAULT_ITERATIONS = 8;    // Crossing minimization iterations
+// Optional parameters for Hierarchical layout
+struct HierarchicalOptionalParams final : public function::OptionalParams {
+    function::OptionalParam<HierarchicalRankSep> rankSep;
+    function::OptionalParam<HierarchicalNodeSep> nodeSep;
+    function::OptionalParam<HierarchicalIterations> iterations;
+
+    explicit HierarchicalOptionalParams(const binder::expression_vector& optionalParams) {
+        for (auto& optionalParam : optionalParams) {
+            auto paramName = StringUtils::getLower(optionalParam->getAlias());
+            if (paramName == HierarchicalRankSep::NAME) {
+                rankSep = function::OptionalParam<HierarchicalRankSep>(optionalParam);
+            } else if (paramName == HierarchicalNodeSep::NAME) {
+                nodeSep = function::OptionalParam<HierarchicalNodeSep>(optionalParam);
+            } else if (paramName == HierarchicalIterations::NAME) {
+                iterations = function::OptionalParam<HierarchicalIterations>(optionalParam);
+            } else {
+                throw BinderException{"Unknown optional parameter: " + optionalParam->getAlias()};
+            }
+        }
+    }
+
+    // For copy only
+    HierarchicalOptionalParams(function::OptionalParam<HierarchicalRankSep> rankSep,
+        function::OptionalParam<HierarchicalNodeSep> nodeSep,
+        function::OptionalParam<HierarchicalIterations> iterations)
+        : rankSep{std::move(rankSep)}, nodeSep{std::move(nodeSep)},
+          iterations{std::move(iterations)} {}
+
+    void evaluateParams(main::ClientContext* context) override {
+        rankSep.evaluateParam(context);
+        nodeSep.evaluateParam(context);
+        iterations.evaluateParam(context);
+    }
+
+    std::unique_ptr<function::OptionalParams> copy() override {
+        return std::make_unique<HierarchicalOptionalParams>(rankSep, nodeSep, iterations);
+    }
+};
 
 // Bind data for Hierarchical layout
 struct HierarchicalLayoutBindData final : public GDSBindData {
     HierarchicalLayoutBindData(expression_vector columns, NativeGraphEntry graphEntry,
-        std::shared_ptr<Expression> nodeOutput)
-        : GDSBindData{std::move(columns), std::move(graphEntry), expression_vector{nodeOutput}} {}
+        std::shared_ptr<Expression> nodeOutput,
+        std::unique_ptr<HierarchicalOptionalParams> optionalParams)
+        : GDSBindData{std::move(columns), std::move(graphEntry), expression_vector{nodeOutput}} {
+        this->optionalParams = std::move(optionalParams);
+    }
 
     std::unique_ptr<TableFuncBindData> copy() const override {
         return std::make_unique<HierarchicalLayoutBindData>(*this);
@@ -238,10 +278,12 @@ static offset_t tableFunc(const TableFuncInput& input, TableFuncOutput&) {
     auto maxOffsetMap = graph->getMaxOffsetMap(transaction);
     auto mm = MemoryManager::Get(*clientContext);
 
-    // Parameters (using defaults)
-    double rankSep = DEFAULT_RANK_SEP;
-    double nodeSep = DEFAULT_NODE_SEP;
-    int64_t iterations = DEFAULT_ITERATIONS;
+    // Get parameters from bind data
+    auto hBindData = input.bindData->constPtrCast<HierarchicalLayoutBindData>();
+    auto& config = hBindData->optionalParams->constCast<HierarchicalOptionalParams>();
+    double rankSep = config.rankSep.getParamVal();
+    double nodeSep = config.nodeSep.getParamVal();
+    int64_t iterations = config.iterations.getParamVal();
 
     // Count total nodes
     uint64_t numNodes = 0;
@@ -449,7 +491,7 @@ static std::unique_ptr<TableFuncBindData> bindFunc(main::ClientContext* context,
     columns.push_back(input->binder->createVariable(Y_COLUMN_NAME, LogicalType::DOUBLE()));
 
     return std::make_unique<HierarchicalLayoutBindData>(std::move(columns), std::move(graphEntry),
-        nodeOutput);
+        nodeOutput, std::make_unique<HierarchicalOptionalParams>(input->optionalParamsLegacy));
 }
 
 function_set HierarchicalLayoutFunction::getFunctionSet() {

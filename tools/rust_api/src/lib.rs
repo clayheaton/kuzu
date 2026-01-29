@@ -1,3 +1,6 @@
+// Suppress warnings from cxx-generated code using #[automatically_derived] on inherent impl blocks
+#![allow(unused_attributes)]
+
 //! Bindings to Kuzu: an in-process property graph database management system built for query speed and scalability.
 //!
 //! ## Example Usage

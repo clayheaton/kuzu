@@ -1,10 +1,13 @@
 #include "binder/binder.h"
+#include "common/string_utils.h"
 #include "function/algo_function.h"
+#include "function/config/forceatlas2_config.h"
 #include "function/gds/gds.h"
 #include "function/gds/gds_utils.h"
 #include "function/gds/gds_vertex_compute.h"
 #include "function/table/bind_data.h"
 #include "function/table/bind_input.h"
+#include "function/table/optional_params.h"
 #include "graph/on_disk_graph.h"
 #include "processor/execution_context.h"
 #include "transaction/transaction.h"
@@ -27,17 +30,58 @@ namespace algo_extension {
 static constexpr char X_COLUMN_NAME[] = "x";
 static constexpr char Y_COLUMN_NAME[] = "y";
 
-// Default parameter values for ForceAtlas2
-static constexpr int64_t DEFAULT_ITERATIONS = 100;
-static constexpr double DEFAULT_SCALING_RATIO = 2.0;    // Repulsion strength
-static constexpr double DEFAULT_GRAVITY = 1.0;          // Center attraction
-static constexpr double DEFAULT_JITTER_TOLERANCE = 1.0; // Speed/quality tradeoff
+// Optional parameters for ForceAtlas2 layout
+struct FA2OptionalParams final : public function::OptionalParams {
+    function::OptionalParam<FA2Iterations> iterations;
+    function::OptionalParam<FA2ScalingRatio> scalingRatio;
+    function::OptionalParam<FA2Gravity> gravity;
+    function::OptionalParam<FA2JitterTolerance> jitterTolerance;
+
+    explicit FA2OptionalParams(const binder::expression_vector& optionalParams) {
+        for (auto& optionalParam : optionalParams) {
+            auto paramName = StringUtils::getLower(optionalParam->getAlias());
+            if (paramName == FA2Iterations::NAME) {
+                iterations = function::OptionalParam<FA2Iterations>(optionalParam);
+            } else if (paramName == FA2ScalingRatio::NAME) {
+                scalingRatio = function::OptionalParam<FA2ScalingRatio>(optionalParam);
+            } else if (paramName == FA2Gravity::NAME) {
+                gravity = function::OptionalParam<FA2Gravity>(optionalParam);
+            } else if (paramName == FA2JitterTolerance::NAME) {
+                jitterTolerance = function::OptionalParam<FA2JitterTolerance>(optionalParam);
+            } else {
+                throw BinderException{"Unknown optional parameter: " + optionalParam->getAlias()};
+            }
+        }
+    }
+
+    // For copy only
+    FA2OptionalParams(function::OptionalParam<FA2Iterations> iterations,
+        function::OptionalParam<FA2ScalingRatio> scalingRatio,
+        function::OptionalParam<FA2Gravity> gravity,
+        function::OptionalParam<FA2JitterTolerance> jitterTolerance)
+        : iterations{std::move(iterations)}, scalingRatio{std::move(scalingRatio)},
+          gravity{std::move(gravity)}, jitterTolerance{std::move(jitterTolerance)} {}
+
+    void evaluateParams(main::ClientContext* context) override {
+        iterations.evaluateParam(context);
+        scalingRatio.evaluateParam(context);
+        gravity.evaluateParam(context);
+        jitterTolerance.evaluateParam(context);
+    }
+
+    std::unique_ptr<function::OptionalParams> copy() override {
+        return std::make_unique<FA2OptionalParams>(iterations, scalingRatio, gravity, jitterTolerance);
+    }
+};
 
 // Bind data for ForceAtlas2 layout
 struct ForceAtlas2BindData final : public GDSBindData {
     ForceAtlas2BindData(expression_vector columns, NativeGraphEntry graphEntry,
-        std::shared_ptr<Expression> nodeOutput)
-        : GDSBindData{std::move(columns), std::move(graphEntry), expression_vector{nodeOutput}} {}
+        std::shared_ptr<Expression> nodeOutput,
+        std::unique_ptr<FA2OptionalParams> optionalParams)
+        : GDSBindData{std::move(columns), std::move(graphEntry), expression_vector{nodeOutput}} {
+        this->optionalParams = std::move(optionalParams);
+    }
 
     std::unique_ptr<TableFuncBindData> copy() const override {
         return std::make_unique<ForceAtlas2BindData>(*this);
@@ -216,11 +260,13 @@ static offset_t tableFunc(const TableFuncInput& input, TableFuncOutput&) {
     auto maxOffsetMap = graph->getMaxOffsetMap(transaction);
     auto mm = MemoryManager::Get(*clientContext);
 
-    // Parameters
-    int64_t iterations = DEFAULT_ITERATIONS;
-    double scalingRatio = DEFAULT_SCALING_RATIO;
-    double gravity = DEFAULT_GRAVITY;
-    double jitterTolerance = DEFAULT_JITTER_TOLERANCE;
+    // Get parameters from bind data
+    auto fa2BindData = input.bindData->constPtrCast<ForceAtlas2BindData>();
+    auto& config = fa2BindData->optionalParams->constCast<FA2OptionalParams>();
+    int64_t iterations = config.iterations.getParamVal();
+    double scalingRatio = config.scalingRatio.getParamVal();
+    double gravity = config.gravity.getParamVal();
+    double jitterTolerance = config.jitterTolerance.getParamVal();
 
     // Count total nodes
     uint64_t numNodes = 0;
@@ -456,7 +502,7 @@ static std::unique_ptr<TableFuncBindData> bindFunc(main::ClientContext* context,
     columns.push_back(input->binder->createVariable(Y_COLUMN_NAME, LogicalType::DOUBLE()));
 
     return std::make_unique<ForceAtlas2BindData>(std::move(columns), std::move(graphEntry),
-        nodeOutput);
+        nodeOutput, std::make_unique<FA2OptionalParams>(input->optionalParamsLegacy));
 }
 
 function_set ForceAtlas2Function::getFunctionSet() {

@@ -131,7 +131,7 @@ fn build_bundled_cmake() -> Vec<PathBuf> {
         "EXTENSION_OUTPUT_DIR",
         format!("{}/extensions", env::var("OUT_DIR").unwrap()),
     );
-    std::fs::create_dir_all(format!("{}/extensions", env::var("OUT_DIR").unwrap()));
+    let _ = std::fs::create_dir_all(format!("{}/extensions", env::var("OUT_DIR").unwrap()));
 
     let build_dir = build.build();
 
