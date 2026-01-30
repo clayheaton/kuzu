@@ -2,11 +2,8 @@ SET(CMAKE_FIND_PACKAGE_SORT_ORDER NATURAL)
 SET(CMAKE_FIND_PACKAGE_SORT_DIRECTION DEC)
 # Address sanitizer may change the ABI, so we use dynamic linking
 # if it's enabled.
-if (${ENABLE_ADDRESS_SANITIZER})
-    SET(OPENSSL_USE_STATIC_LIBS FALSE)
-else ()
-    SET(OPENSSL_USE_STATIC_LIBS TRUE)
-endif ()
+# Use dynamic OpenSSL linking (static libs not available via Homebrew)
+SET(OPENSSL_USE_STATIC_LIBS FALSE)
 
 find_package(OpenSSL REQUIRED)
 include_directories(${OPENSSL_INCLUDE_DIR})
