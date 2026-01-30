@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <map>
 #include <queue>
 #include <vector>
@@ -469,6 +470,38 @@ static offset_t tableFunc(const TableFuncInput& input, TableFuncOutput&) {
             xValues.setValue(nodeList[nodeIdx].offset, x);
             yValues.setValue(nodeList[nodeIdx].offset, y);
         }
+    }
+
+    // Normalize coordinates to [0, 1] space
+    double minX = std::numeric_limits<double>::max();
+    double maxX = std::numeric_limits<double>::lowest();
+    double minY = std::numeric_limits<double>::max();
+    double maxY = std::numeric_limits<double>::lowest();
+
+    for (size_t i = 0; i < nodeList.size(); ++i) {
+        xValues.pinTable(nodeList[i].tableID);
+        yValues.pinTable(nodeList[i].tableID);
+        double x = xValues.getValue(nodeList[i].offset);
+        double y = yValues.getValue(nodeList[i].offset);
+        minX = std::min(minX, x);
+        maxX = std::max(maxX, x);
+        minY = std::min(minY, y);
+        maxY = std::max(maxY, y);
+    }
+
+    double rangeX = maxX - minX;
+    double rangeY = maxY - minY;
+    // Avoid division by zero for single-node or collinear layouts
+    if (rangeX < 0.0001) rangeX = 1.0;
+    if (rangeY < 0.0001) rangeY = 1.0;
+
+    for (size_t i = 0; i < nodeList.size(); ++i) {
+        xValues.pinTable(nodeList[i].tableID);
+        yValues.pinTable(nodeList[i].tableID);
+        double x = xValues.getValue(nodeList[i].offset);
+        double y = yValues.getValue(nodeList[i].offset);
+        xValues.setValue(nodeList[i].offset, (x - minX) / rangeX);
+        yValues.setValue(nodeList[i].offset, (y - minY) / rangeY);
     }
 
     // Output results

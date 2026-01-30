@@ -9,6 +9,7 @@
 #include "processor/execution_context.h"
 #include "transaction/transaction.h"
 
+#include <limits>
 #include <random>
 
 using namespace kuzu::binder;
@@ -157,6 +158,42 @@ static offset_t tableFunc(const TableFuncInput& input, TableFuncOutput&) {
         for (offset_t i = 0; i < maxOffset; ++i) {
             xValues.setValue(i, xDist(rng));
             yValues.setValue(i, yDist(rng));
+        }
+    }
+
+    // Normalize coordinates to [0, 1] space
+    double minX = std::numeric_limits<double>::max();
+    double maxX = std::numeric_limits<double>::lowest();
+    double minY = std::numeric_limits<double>::max();
+    double maxY = std::numeric_limits<double>::lowest();
+
+    for (const auto& [tableID, maxOffset] : maxOffsetMap) {
+        xValues.pinTable(tableID);
+        yValues.pinTable(tableID);
+        for (offset_t i = 0; i < maxOffset; ++i) {
+            double x = xValues.getValue(i);
+            double y = yValues.getValue(i);
+            minX = std::min(minX, x);
+            maxX = std::max(maxX, x);
+            minY = std::min(minY, y);
+            maxY = std::max(maxY, y);
+        }
+    }
+
+    double rangeX = maxX - minX;
+    double rangeY = maxY - minY;
+    // Avoid division by zero for single-node or collinear layouts
+    if (rangeX < 0.0001) rangeX = 1.0;
+    if (rangeY < 0.0001) rangeY = 1.0;
+
+    for (const auto& [tableID, maxOffset] : maxOffsetMap) {
+        xValues.pinTable(tableID);
+        yValues.pinTable(tableID);
+        for (offset_t i = 0; i < maxOffset; ++i) {
+            double x = xValues.getValue(i);
+            double y = yValues.getValue(i);
+            xValues.setValue(i, (x - minX) / rangeX);
+            yValues.setValue(i, (y - minY) / rangeY);
         }
     }
 
